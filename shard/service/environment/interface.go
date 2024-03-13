@@ -14,6 +14,8 @@ type Instance interface {
 
 	IsRunning(ctx context.Context) (bool, error)
 
+	Prelude(ctx context.Context) error
+
 	Start(ctx context.Context) error
 
 	Stop(ctx context.Context) error
