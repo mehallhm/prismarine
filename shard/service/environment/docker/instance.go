@@ -2,8 +2,12 @@ package docker
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"github.com/docker/docker/client"
+	"prismarine/shard/service"
 	"prismarine/shard/service/environment"
+	"prismarine/shard/service/events"
 	"sync"
 )
 
@@ -21,6 +25,10 @@ type Instance struct {
 
 	// The Docker client being used for this environment
 	client *client.Client
+
+	state *service.AtomicString
+
+	emitter *events.Bus
 }
 
 func New(id string) (*Instance, error) {
@@ -63,8 +71,38 @@ func (i *Instance) IsRunning(ctx context.Context) (bool, error) {
 	return c.State.Running, nil
 }
 
+// Config returns the Configuration of the Instance
 func (i *Instance) Config() *environment.Configuration {
 	i.RLock()
 	defer i.RUnlock()
 	return i.Configuration
+}
+
+// State returns the state of the Instance
+func (i *Instance) State() string {
+	return i.state.Load()
+}
+
+// Events returns an event bus for the instance
+func (i *Instance) Events() *events.Bus {
+	return i.emitter
+}
+
+// SetState sets the state of the environment. This emits an event that server's
+// can hook into to take their own actions and track their own state based on
+// the environment.
+func (i *Instance) SetState(state string) {
+	if state != environment.ProcessOfflineState &&
+		state != environment.ProcessStartingState &&
+		state != environment.ProcessRunningState &&
+		state != environment.ProcessStoppingState {
+		panic(errors.New(fmt.Sprintf("invalid server state received: %s", state)))
+	}
+
+	// Emit the event to any listeners that are currently registered.
+	if i.State() != state {
+		// If the state changed make sure we update the internal tracking to note that.
+		i.state.Store(state)
+		i.Events().Publish(environment.StateChangeEvent, state)
+	}
 }

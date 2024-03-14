@@ -14,6 +14,12 @@ type Configuration struct {
 	} `json:"container"`
 }
 
+func (s *Server) Config() *Configuration {
+	s.cfg.RLock()
+	defer s.cfg.RUnlock()
+	return &s.cfg
+}
+
 func (c *Configuration) GetUuid() string {
 	c.RLock()
 	defer c.RUnlock()

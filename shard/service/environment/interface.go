@@ -1,13 +1,31 @@
 package environment
 
-import "context"
+import (
+	"context"
+	"prismarine/shard/service/events"
+)
+
+const (
+	StateChangeEvent         = "state change"
+	ResourceEvent            = "resources"
+	DockerImagePullStarted   = "docker image pull started"
+	DockerImagePullStatus    = "docker image pull status"
+	DockerImagePullCompleted = "docker image pull completed"
+)
+
+const (
+	ProcessOfflineState  = "offline"
+	ProcessStartingState = "starting"
+	ProcessRunningState  = "running"
+	ProcessStoppingState = "stopping"
+)
 
 type Instance interface {
 	Type() string
 
 	Config() *Configuration
 
-	//Events() *events.Bus
+	Events() *events.Bus
 
 	// Exists determines whether the Instance exists in the environment
 	Exists() (bool, error)
@@ -21,4 +39,8 @@ type Instance interface {
 	Stop(ctx context.Context) error
 
 	Create() error
+
+	State() string
+
+	SetState(string)
 }

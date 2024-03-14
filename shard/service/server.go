@@ -26,3 +26,8 @@ func New() (*Server, error) {
 
 	return &s, nil
 }
+
+// Id returns the UUID for the server
+func (s *Server) Id() string {
+	return s.Config().GetUuid()
+}
