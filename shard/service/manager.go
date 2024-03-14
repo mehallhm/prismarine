@@ -86,7 +86,10 @@ func (m *Manager) Remove(filter func(match *Server) bool) {
 }
 
 func (m *Manager) InitServer(data remote.ServerData) (*Server, error) {
-	s, err := New()
+	s, err := New(&Configuration{
+		Name: "Zoom",
+		Uuid: data.Uuid,
+	})
 	if err != nil {
 		return nil, err
 	}

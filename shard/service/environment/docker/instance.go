@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"prismarine/shard/service"
 	"prismarine/shard/service/environment"
@@ -25,6 +26,10 @@ type Instance struct {
 
 	// The Docker client being used for this environment
 	client *client.Client
+
+	// Controls the hijacked response stream which only exists when
+	// attached to the running docker instance
+	stream *types.HijackedResponse
 
 	state *service.AtomicString
 
@@ -86,6 +91,23 @@ func (i *Instance) State() string {
 // Events returns an event bus for the instance
 func (i *Instance) Events() *events.Bus {
 	return i.emitter
+}
+
+// IsAttached determines if this process is currently attached to
+// the container instance by checking if the stream is nil or not
+func (i *Instance) IsAttached() bool {
+	i.RLock()
+	defer i.RUnlock()
+	return i.stream != nil
+}
+
+// SetStream sets the current stream value from the Docker client. If a nil
+// value is provided we assume that the stream is no longer operational and the
+// instance is effectively offline
+func (i *Instance) SetStream(s *types.HijackedResponse) {
+	i.Lock()
+	defer i.Unlock()
+	i.stream = s
 }
 
 // SetState sets the state of the environment. This emits an event that server's

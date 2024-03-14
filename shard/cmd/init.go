@@ -26,5 +26,10 @@ func initLogging() {
 
 	for _, s := range manager.All() {
 		log.Debug().Msgf("server %s loaded", s.Id())
+
+		if err := s.CreateInstance(); err != nil {
+			log.Fatal().Err(err).Msg("We failed")
+		}
 	}
+
 }

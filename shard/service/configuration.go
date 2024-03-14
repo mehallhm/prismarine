@@ -17,7 +17,7 @@ type Configuration struct {
 func (s *Server) Config() *Configuration {
 	s.cfg.RLock()
 	defer s.cfg.RUnlock()
-	return &s.cfg
+	return s.cfg
 }
 
 func (c *Configuration) GetUuid() string {
