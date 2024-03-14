@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"os"
@@ -18,9 +19,12 @@ func initLogging() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
-	manager, err := service.NewManager()
+	manager, err := service.NewManager(context.Background())
 	if err != nil {
 		log.Fatal().Msg("Failed to initialize manager")
 	}
 
+	for _, s := range manager.All() {
+		log.Debug().Msgf("server %s loaded", s.Id())
+	}
 }
