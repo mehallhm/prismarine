@@ -6,15 +6,18 @@ import (
 	"fmt"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
-	"prismarine/shard/service"
-	"prismarine/shard/service/environment"
 	"prismarine/shard/service/events"
+	"prismarine/shard/service/runtime"
 	"sync"
 )
 
-// Ensure that the Docker environment is implementing all methods from
-// the base environment
-var _ environment.Instance = (*Instance)(nil)
+// Ensure that the Docker runtime is implementing all methods from
+// the base runtime
+var _ runtime.Instance = (*Instance)(nil)
+
+type Metadata struct {
+	Image string
+}
 
 type Instance struct {
 	sync.RWMutex
@@ -22,21 +25,22 @@ type Instance struct {
 	Id string
 
 	// The Instance configuration
-	Configuration *environment.Configuration
+	Configuration *runtime.Configuration
+	meta          *Metadata
 
-	// The Docker client being used for this environment
+	// The Docker client being used for this runtime
 	client *client.Client
 
 	// Controls the hijacked response stream which only exists when
 	// attached to the running docker instance
 	stream *types.HijackedResponse
 
-	state *service.AtomicString
+	state *runtime.AtomicString
 
 	emitter *events.Bus
 }
 
-func New(id string) (*Instance, error) {
+func New(id string, m *Metadata) (*Instance, error) {
 	cli, err := Create()
 	if err != nil {
 		return nil, err
@@ -45,6 +49,7 @@ func New(id string) (*Instance, error) {
 	i := &Instance{
 		Id:     id,
 		client: cli,
+		meta:   m,
 	}
 
 	return i, nil
@@ -55,7 +60,7 @@ func (i *Instance) Type() string {
 	return "docker"
 }
 
-// Exists determines if the container exists in this environment. The ID passed
+// Exists determines if the container exists in this runtime. The ID passed
 // through should be the server UUID.
 func (i *Instance) Exists() (bool, error) {
 	_, err := i.ContainerInspect(context.Background())
@@ -77,7 +82,7 @@ func (i *Instance) IsRunning(ctx context.Context) (bool, error) {
 }
 
 // Config returns the Configuration of the Instance
-func (i *Instance) Config() *environment.Configuration {
+func (i *Instance) Config() *runtime.Configuration {
 	i.RLock()
 	defer i.RUnlock()
 	return i.Configuration
@@ -110,14 +115,14 @@ func (i *Instance) SetStream(s *types.HijackedResponse) {
 	i.stream = s
 }
 
-// SetState sets the state of the environment. This emits an event that server's
+// SetState sets the state of the runtime. This emits an event that server's
 // can hook into to take their own actions and track their own state based on
-// the environment.
+// the runtime.
 func (i *Instance) SetState(state string) {
-	if state != environment.ProcessOfflineState &&
-		state != environment.ProcessStartingState &&
-		state != environment.ProcessRunningState &&
-		state != environment.ProcessStoppingState {
+	if state != runtime.ProcessOfflineState &&
+		state != runtime.ProcessStartingState &&
+		state != runtime.ProcessRunningState &&
+		state != runtime.ProcessStoppingState {
 		panic(errors.New(fmt.Sprintf("invalid server state received: %s", state)))
 	}
 
@@ -125,6 +130,6 @@ func (i *Instance) SetState(state string) {
 	if i.State() != state {
 		// If the state changed make sure we update the internal tracking to note that.
 		i.state.Store(state)
-		i.Events().Publish(environment.StateChangeEvent, state)
+		i.Events().Publish(runtime.StateChangeEvent, state)
 	}
 }

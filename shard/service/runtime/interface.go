@@ -1,4 +1,4 @@
-package environment
+package runtime
 
 import (
 	"context"
@@ -27,7 +27,7 @@ type Instance interface {
 
 	Events() *events.Bus
 
-	// Exists determines whether the Instance exists in the environment
+	// Exists determines whether the Instance exists in the runtime
 	Exists() (bool, error)
 
 	IsRunning(ctx context.Context) (bool, error)

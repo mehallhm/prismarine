@@ -2,7 +2,8 @@ package service
 
 import (
 	"context"
-	"prismarine/shard/service/environment"
+	"prismarine/shard/service/events"
+	"prismarine/shard/service/runtime"
 	"sync"
 )
 
@@ -13,7 +14,9 @@ type Server struct {
 
 	cfg *Configuration
 
-	instance environment.Instance
+	instance runtime.Instance
+
+	emitter *events.Bus
 
 	//emitterLock sync.Mutex
 	//powerLock *system.Locker
@@ -26,6 +29,10 @@ func New(config *Configuration) (*Server, error) {
 		ctx:       ctx,
 		ctxCancel: &cancel,
 		cfg:       config,
+
+		emitter: &events.Bus{
+			SinkPool: events.NewSinkPool(),
+		},
 	}
 
 	return &s, nil

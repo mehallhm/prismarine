@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/rs/zerolog/log"
 	"prismarine/shard/remote"
+	"prismarine/shard/service/runtime/docker"
 	"sync"
 	"time"
 )
@@ -94,6 +95,16 @@ func (m *Manager) InitServer(data remote.ServerData) (*Server, error) {
 		return nil, err
 	}
 
+	meta := docker.Metadata{
+		Image: "busybox",
+	}
+
+	if instance, err := docker.New(s.Id(), &meta); err != nil {
+		return nil, err
+	} else {
+		s.instance = instance
+	}
+
 	return s, nil
 
 }
@@ -102,7 +113,7 @@ func (m *Manager) init(ctx context.Context) error {
 	log.Debug().Msg("Initializing Manager...")
 	servers := make([]remote.ServerData, 1)
 	servers[0] = remote.ServerData{
-		Uuid: "89gt90",
+		Uuid: "493a41d5-2769-40ff-8003-6a8a717bfccb",
 	}
 
 	start := time.Now()
