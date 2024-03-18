@@ -2,7 +2,7 @@ package runtime
 
 import (
 	"context"
-	"prismarine/shard/service/events"
+	"prismarine/shard/runtime/events"
 )
 
 const (

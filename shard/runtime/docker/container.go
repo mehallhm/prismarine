@@ -4,12 +4,13 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
-	"prismarine/shard/service/runtime"
+	"prismarine/shard/runtime"
 	"strings"
 	"time"
 )
@@ -213,10 +214,16 @@ func (i *Instance) ensureImageExists(image string) error {
 		if err != nil {
 			return err
 		}
-		//status := m["status"]
+		status := m["status"]
 		progress := m["progress"]
 
 		i.Events().Publish(runtime.DockerImagePullStatus, progress)
+		log.Debug().
+			Str("runtime", "docker").
+			Str("image", image).
+			Str("status", fmt.Sprintf("%s", status)).
+			Str("progress", fmt.Sprintf("%s", progress)).
+			Msg("Pulling Image")
 
 	}
 

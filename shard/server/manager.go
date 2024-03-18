@@ -1,10 +1,10 @@
-package service
+package server
 
 import (
 	"context"
 	"github.com/rs/zerolog/log"
 	"prismarine/shard/remote"
-	"prismarine/shard/service/runtime/docker"
+	"prismarine/shard/runtime/docker"
 	"sync"
 	"time"
 )

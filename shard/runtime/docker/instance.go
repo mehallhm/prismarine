@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
-	"prismarine/shard/service/events"
-	"prismarine/shard/service/runtime"
+	runtime2 "prismarine/shard/runtime"
+	"prismarine/shard/runtime/events"
 	"sync"
 )
 
 // Ensure that the Docker runtime is implementing all methods from
 // the base runtime
-var _ runtime.Instance = (*Instance)(nil)
+var _ runtime2.Instance = (*Instance)(nil)
 
 type Metadata struct {
 	Image string
@@ -25,7 +25,7 @@ type Instance struct {
 	Id string
 
 	// The Instance configuration
-	Configuration *runtime.Configuration
+	Configuration *runtime2.Configuration
 	meta          *Metadata
 
 	// The Docker client being used for this runtime
@@ -35,7 +35,7 @@ type Instance struct {
 	// attached to the running docker instance
 	stream *types.HijackedResponse
 
-	state *runtime.AtomicString
+	state *runtime2.AtomicString
 
 	emitter *events.Bus
 }
@@ -82,7 +82,7 @@ func (i *Instance) IsRunning(ctx context.Context) (bool, error) {
 }
 
 // Config returns the Configuration of the Instance
-func (i *Instance) Config() *runtime.Configuration {
+func (i *Instance) Config() *runtime2.Configuration {
 	i.RLock()
 	defer i.RUnlock()
 	return i.Configuration
@@ -119,10 +119,10 @@ func (i *Instance) SetStream(s *types.HijackedResponse) {
 // can hook into to take their own actions and track their own state based on
 // the runtime.
 func (i *Instance) SetState(state string) {
-	if state != runtime.ProcessOfflineState &&
-		state != runtime.ProcessStartingState &&
-		state != runtime.ProcessRunningState &&
-		state != runtime.ProcessStoppingState {
+	if state != runtime2.ProcessOfflineState &&
+		state != runtime2.ProcessStartingState &&
+		state != runtime2.ProcessRunningState &&
+		state != runtime2.ProcessStoppingState {
 		panic(errors.New(fmt.Sprintf("invalid server state received: %s", state)))
 	}
 
@@ -130,6 +130,6 @@ func (i *Instance) SetState(state string) {
 	if i.State() != state {
 		// If the state changed make sure we update the internal tracking to note that.
 		i.state.Store(state)
-		i.Events().Publish(runtime.StateChangeEvent, state)
+		i.Events().Publish(runtime2.StateChangeEvent, state)
 	}
 }

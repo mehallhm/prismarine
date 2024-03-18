@@ -5,7 +5,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"os"
-	"prismarine/shard/service"
+	"prismarine/shard/server"
 )
 
 func Execute() {
@@ -19,7 +19,7 @@ func initLogging() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
-	manager, err := service.NewManager(context.Background())
+	manager, err := server.NewManager(context.Background())
 	if err != nil {
 		log.Fatal().Msg("Failed to initialize manager")
 	}
@@ -30,6 +30,7 @@ func initLogging() {
 		if err := s.CreateInstance(); err != nil {
 			log.Fatal().Err(err).Msg("We failed")
 		}
+
 	}
 
 }

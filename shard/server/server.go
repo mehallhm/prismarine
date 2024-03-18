@@ -1,9 +1,9 @@
-package service
+package server
 
 import (
 	"context"
-	"prismarine/shard/service/events"
-	"prismarine/shard/service/runtime"
+	"prismarine/shard/runtime"
+	"prismarine/shard/runtime/events"
 	"sync"
 )
 
@@ -19,8 +19,7 @@ type Server struct {
 	emitter *events.Bus
 
 	//emitterLock sync.Mutex
-	//powerLock *system.Locker
-
+	powerLock *Locker
 }
 
 func New(config *Configuration) (*Server, error) {

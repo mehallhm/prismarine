@@ -5,7 +5,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/pkg/errors"
-	"prismarine/shard/service/runtime"
+	"prismarine/shard/runtime"
 	"time"
 )
 
