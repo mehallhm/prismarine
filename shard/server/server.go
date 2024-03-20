@@ -18,6 +18,12 @@ type Server struct {
 
 	emitter *events.Bus
 
+	// Tracks the installation process and prevents a server from
+	// running two installer process at the same time
+	installing   *runtime.AtomicBool
+	restarting   *runtime.AtomicBool
+	transferring *runtime.AtomicBool
+
 	//emitterLock sync.Mutex
 	powerLock *Locker
 }
@@ -28,6 +34,12 @@ func New(config *Configuration) (*Server, error) {
 		ctx:       ctx,
 		ctxCancel: &cancel,
 		cfg:       config,
+
+		installing:   runtime.NewAtomicBool(false),
+		restarting:   runtime.NewAtomicBool(false),
+		transferring: runtime.NewAtomicBool(false),
+
+		powerLock: NewLocker(),
 
 		emitter: &events.Bus{
 			SinkPool: events.NewSinkPool(),

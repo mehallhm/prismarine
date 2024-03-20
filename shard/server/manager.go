@@ -2,11 +2,12 @@ package server
 
 import (
 	"context"
-	"github.com/rs/zerolog/log"
 	"prismarine/shard/remote"
 	"prismarine/shard/runtime/docker"
 	"sync"
 	"time"
+
+	"github.com/charmbracelet/log"
 )
 
 type Manager struct {
@@ -96,7 +97,7 @@ func (m *Manager) InitServer(data remote.ServerData) (*Server, error) {
 	}
 
 	meta := docker.Metadata{
-		Image: "busybox",
+		Image: "nginx",
 	}
 
 	if instance, err := docker.New(s.Id(), &meta); err != nil {
@@ -106,18 +107,17 @@ func (m *Manager) InitServer(data remote.ServerData) (*Server, error) {
 	}
 
 	return s, nil
-
 }
 
 func (m *Manager) init(ctx context.Context) error {
-	log.Debug().Msg("Initializing Manager...")
+	log.Debug("Initializing Manager...")
 	servers := make([]remote.ServerData, 1)
 	servers[0] = remote.ServerData{
 		Uuid: "493a41d5-2769-40ff-8003-6a8a717bfccb",
 	}
 
 	start := time.Now()
-	log.Debug().Msgf("Total game servers: %o", len(servers))
+	log.Debugf("Total game servers: %o", len(servers))
 
 	// TODO Parallelize server initialization
 	for _, data := range servers {
@@ -125,7 +125,7 @@ func (m *Manager) init(ctx context.Context) error {
 
 		s, err := m.InitServer(data)
 		if err != nil {
-			log.Fatal().Msg("Failed to load server...")
+			log.Fatal("Failed to load server...")
 
 			// TODO Fix w/ above comment.. should skip server if it fails to init
 			continue
@@ -134,7 +134,7 @@ func (m *Manager) init(ctx context.Context) error {
 	}
 
 	diff := time.Now().Sub(start)
-	log.Debug().Msgf("Duration of startup: %s", diff)
+	log.Debugf("Duration of startup: %s", diff)
 
 	return nil
 }

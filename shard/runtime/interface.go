@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"prismarine/shard/runtime/events"
+	"time"
 )
 
 const (
@@ -32,11 +33,13 @@ type Instance interface {
 
 	IsRunning(ctx context.Context) (bool, error)
 
-	Prelude(ctx context.Context) error
+	Preflight(ctx context.Context) error
 
 	Start(ctx context.Context) error
 
 	Stop(ctx context.Context) error
+
+	WaitForStop(ctx context.Context, duration time.Duration, terminate bool) error
 
 	Create() error
 

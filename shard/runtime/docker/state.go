@@ -2,14 +2,18 @@ package docker
 
 import (
 	"context"
+	"os"
+	"prismarine/shard/runtime"
+	"strings"
+	"time"
+
+	"github.com/charmbracelet/log"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/pkg/errors"
-	"prismarine/shard/runtime"
-	"time"
 )
 
-func (i *Instance) Prelude(ctx context.Context) error {
+func (i *Instance) Preflight(ctx context.Context) error {
 	// Always destroy and re-create the server container
 	if err := i.client.ContainerRemove(ctx, i.Id, container.RemoveOptions{}); err != nil {
 		if !client.IsErrNotFound(err) {
@@ -32,6 +36,7 @@ func (i *Instance) Prelude(ctx context.Context) error {
 }
 
 func (i *Instance) Start(ctx context.Context) error {
+	log.Debug("starting instance...")
 	sawError := false
 
 	defer func() {
@@ -71,7 +76,7 @@ func (i *Instance) Start(ctx context.Context) error {
 	// Run the before start function and wait for it to finish. This will validate that the container
 	// exists on the system, and rebuild the container if that is required for server booting to
 	// occur.
-	if err := i.Prelude(ctx); err != nil {
+	if err := i.Preflight(ctx); err != nil {
 		return errors.Wrap(err, "runtime/docker: failed to run prelude")
 	}
 
@@ -99,6 +104,159 @@ func (i *Instance) Start(ctx context.Context) error {
 	return nil
 }
 
+// Stop stops the container that the server is running in. This will allow up to
+// 30 seconds to pass before the container is forcefully terminated if we are
+// trying to stop it without using a command sent into the instance.
+//
+// You most likely want to be using WaitForStop() rather than this function,
+// since this will return as soon as the command is sent, rather than waiting
+// for the process to be completed stopped.
 func (i *Instance) Stop(ctx context.Context) error {
-	panic("Nope")
+	i.Lock()
+	s := i.meta.Stop
+	i.Unlock()
+
+	// A native "stop" as the Type field value will just skip over all of this
+	// logic and end up only executing the container stop command (which may or
+	// may not work as expected).
+	if s == "" {
+		if s == "" {
+			log.Debug("no stop configuration set, using terminate command")
+		}
+
+		signal := os.Kill
+
+		// Skipping some stuff
+		return i.Terminate(ctx, signal)
+	}
+
+	// If the process is already offline don't switch it back to stopping. Just leave it how
+	// it is and continue through to the stop handling for the process
+	if i.state.Load() != runtime.ProcessOfflineState {
+		i.SetState(runtime.ProcessStoppingState)
+	}
+
+	// // Only attempt to send the stop command if we are attached
+	// if i.IsAttached() && false {
+	//   return i.SendCommand(s.)
+	// }
+
+	// Allow the stop action to run for however long it takes, similar to executing a command
+	// and using a different logic pathway to wait for the container to stop successfully.
+	//
+	// Using a negative timeout here will allow the container to stop gracefully,
+	// rather than forcefully terminating it.  Value is in seconds, but -1 is
+	// treated as indefinitely.
+	timeout := -1
+	if err := i.client.ContainerStop(ctx, i.Id, container.StopOptions{Timeout: &timeout}); err != nil {
+		if client.IsErrNotFound(err) {
+			i.SetStream(nil)
+			i.SetState(runtime.ProcessOfflineState)
+			return nil
+		}
+
+		return errors.Wrap(err, "runtime/docker: cannot stop container")
+	}
+
+	return nil
+}
+
+// WaitForStop attempts to gracefully stop a server using the defined stop
+// command. If the server does not stop after seconds have passed, an error will
+// be returned, or the instance will be terminated forcefully depending on the
+// value of the second argument.
+//
+// Calls to Environment.Terminate() in this function use the context passed
+// through since we don't want to prevent termination of the server instance
+// just because the context.WithTimeout() has expired.
+func (i *Instance) WaitForStop(ctx context.Context, duration time.Duration, terminate bool) error {
+	tctx, cancel := context.WithTimeout(context.Background(), duration)
+	defer cancel()
+
+	// If the parent context is cancled, abored the timed context for termination
+	go func() {
+		select {
+		case <-ctx.Done():
+			cancel()
+		case <-tctx.Done():
+			break
+		}
+	}()
+
+	doTermination := func(s string) error {
+		log.Warnf("Terminating with %s", s)
+		return i.Terminate(ctx, os.Kill)
+	}
+
+	// We pass through the timed context for this stop action so that if one of the
+	// internal docker calls fails to ever finish before we've exhausted the time limit
+	// the resources get cleaned up, and the exection is stopped.
+	if err := i.Stop(tctx); err != nil {
+		if terminate && errors.Is(err, context.DeadlineExceeded) {
+			return doTermination("stop")
+		}
+		return err
+	}
+
+	// Block the return of this function until the container as been marked as no
+	// longer running. If this wait does not end by the time seconds have passed,
+	// attempt to terminate the container, or return an error.
+	ok, errChan := i.client.ContainerWait(tctx, i.Id, container.WaitConditionNotRunning)
+	select {
+	case <-ctx.Done():
+		if err := ctx.Err(); err != nil {
+			if terminate {
+				return doTermination("parent-context")
+			}
+			return err
+		}
+	case err := <-errChan:
+		if err == nil || client.IsErrNotFound(err) {
+			return nil
+		}
+		if terminate {
+			if !errors.Is(err, context.DeadlineExceeded) {
+				log.Error(err, "error while waiting for container stop")
+			}
+
+			return doTermination("wait")
+		}
+
+		return errors.Wrapf(err, "runtime/docker: error waiting on conatainer to stop")
+	case <-ok:
+	}
+
+	return nil
+}
+
+// Terminate forcefully terminates the container using the signal provided
+func (i *Instance) Terminate(ctx context.Context, signal os.Signal) error {
+	log.Warnf("Terminating instance %s", i.Id)
+	c, err := i.ContainerInspect(ctx)
+	if err != nil {
+		if client.IsErrNotFound(err) {
+			return nil
+		}
+		return errors.WithStack(err)
+	}
+
+	if !c.State.Running {
+		if i.state.Load() != runtime.ProcessOfflineState {
+			i.SetState(runtime.ProcessStoppingState)
+			i.SetState(runtime.ProcessOfflineState)
+		}
+
+		return nil
+	}
+
+	// Set to stopping first to prevent crash detection
+	i.SetState(runtime.ProcessStoppingState)
+	sig := strings.TrimSuffix(strings.TrimPrefix(signal.String(), "signal "), "ed")
+	if err := i.client.ContainerKill(ctx, i.Id, sig); err != nil && !client.IsErrNotFound(err) {
+		return errors.WithStack(err)
+	}
+
+	i.SetState(runtime.ProcessOfflineState)
+
+	return nil
 }

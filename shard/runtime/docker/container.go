@@ -5,14 +5,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"prismarine/shard/runtime"
+	"strings"
+	"time"
+
+	"github.com/charmbracelet/log"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog/log"
-	"prismarine/shard/runtime"
-	"strings"
-	"time"
 )
 
 func (i *Instance) Attach(ctx context.Context) error {
@@ -35,8 +36,8 @@ func (i *Instance) Attach(ctx context.Context) error {
 	}
 
 	go func() {
-		//pollCtx, cancel := context.WithCancel(context.Background())
-		//defer cancel()
+		// pollCtx, cancel := context.WithCancel(context.Background())
+		// defer cancel()
 		defer i.stream.Close()
 		defer func() {
 			i.SetState(runtime.ProcessOfflineState)
@@ -46,17 +47,16 @@ func (i *Instance) Attach(ctx context.Context) error {
 		//go func() {
 		//	if err := i.
 		//}()
-
 	}()
 
 	return nil
 }
 
 func (i *Instance) Create() error {
-	log.Debug().
-		Str("runtime", "docker").
-		Str("Instance", i.Id).
-		Msg("Creating Instance")
+	log.
+		With("runtime", "docker").
+		With("Instance", i.Id).
+		Debug("Creating Instance")
 
 	ctx := context.Background()
 
@@ -186,11 +186,10 @@ func (i *Instance) ensureImageExists(image string) error {
 					continue
 				}
 
-				log.Warn().
-					Str("image", image).
-					Str("container_id", i.Id).
-					Err(err).
-					Msg("unable to pull requested image from remote server, however image exists locally")
+				log.
+					With("image", image).
+					With("container_id", i.Id).
+					Warn("unable to pull requested image from remote server, however image exists locally")
 
 				return nil
 			}
@@ -201,7 +200,7 @@ func (i *Instance) ensureImageExists(image string) error {
 
 	defer out.Close()
 
-	log.Debug().Str("image", image).Msg("Pulling docker image... this may take a while")
+	log.With("image", image).Debug("Pulling docker image... this may take a while")
 
 	// Not sure if this is the best way to do this... blocks execution until the image is
 	// done being pulled
@@ -218,12 +217,12 @@ func (i *Instance) ensureImageExists(image string) error {
 		progress := m["progress"]
 
 		i.Events().Publish(runtime.DockerImagePullStatus, progress)
-		log.Debug().
-			Str("runtime", "docker").
-			Str("image", image).
-			Str("status", fmt.Sprintf("%s", status)).
-			Str("progress", fmt.Sprintf("%s", progress)).
-			Msg("Pulling Image")
+		log.
+			With("runtime", "docker").
+			With("image", image).
+			With("status", fmt.Sprintf("%s", status)).
+			With("progress", fmt.Sprintf("%s", progress)).
+			Debug("Pulling Image")
 
 	}
 
@@ -231,7 +230,7 @@ func (i *Instance) ensureImageExists(image string) error {
 		return err
 	}
 
-	log.Debug().Str("image", image).Msg("completed docker image pull")
+	log.With("image", image).Debug("completed docker image pull")
 
 	return nil
 }

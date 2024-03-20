@@ -2,21 +2,22 @@ package docker
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/client"
-	runtime2 "prismarine/shard/runtime"
+	"prismarine/shard/runtime"
 	"prismarine/shard/runtime/events"
 	"sync"
+
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/client"
 )
 
 // Ensure that the Docker runtime is implementing all methods from
 // the base runtime
-var _ runtime2.Instance = (*Instance)(nil)
+var _ runtime.Instance = (*Instance)(nil)
 
 type Metadata struct {
 	Image string
+	Stop  string
 }
 
 type Instance struct {
@@ -25,7 +26,7 @@ type Instance struct {
 	Id string
 
 	// The Instance configuration
-	Configuration *runtime2.Configuration
+	Configuration *runtime.Configuration
 	meta          *Metadata
 
 	// The Docker client being used for this runtime
@@ -35,7 +36,7 @@ type Instance struct {
 	// attached to the running docker instance
 	stream *types.HijackedResponse
 
-	state *runtime2.AtomicString
+	state *runtime.AtomicString
 
 	emitter *events.Bus
 }
@@ -50,6 +51,8 @@ func New(id string, m *Metadata) (*Instance, error) {
 		Id:     id,
 		client: cli,
 		meta:   m,
+
+		state: runtime.NewAtomicString(runtime.ProcessOfflineState),
 	}
 
 	return i, nil
@@ -82,7 +85,7 @@ func (i *Instance) IsRunning(ctx context.Context) (bool, error) {
 }
 
 // Config returns the Configuration of the Instance
-func (i *Instance) Config() *runtime2.Configuration {
+func (i *Instance) Config() *runtime.Configuration {
 	i.RLock()
 	defer i.RUnlock()
 	return i.Configuration
@@ -119,17 +122,17 @@ func (i *Instance) SetStream(s *types.HijackedResponse) {
 // can hook into to take their own actions and track their own state based on
 // the runtime.
 func (i *Instance) SetState(state string) {
-	if state != runtime2.ProcessOfflineState &&
-		state != runtime2.ProcessStartingState &&
-		state != runtime2.ProcessRunningState &&
-		state != runtime2.ProcessStoppingState {
-		panic(errors.New(fmt.Sprintf("invalid server state received: %s", state)))
+	if state != runtime.ProcessOfflineState &&
+		state != runtime.ProcessStartingState &&
+		state != runtime.ProcessRunningState &&
+		state != runtime.ProcessStoppingState {
+		panic(fmt.Errorf("invalid server state received: %s", state))
 	}
 
 	// Emit the event to any listeners that are currently registered.
 	if i.State() != state {
 		// If the state changed make sure we update the internal tracking to note that.
 		i.state.Store(state)
-		i.Events().Publish(runtime2.StateChangeEvent, state)
+		i.Events().Publish(runtime.StateChangeEvent, state)
 	}
 }
