@@ -2,9 +2,12 @@ package server
 
 import (
 	"context"
+	"os"
 	"prismarine/shard/runtime"
 	"prismarine/shard/runtime/events"
 	"sync"
+
+	"github.com/charmbracelet/log"
 )
 
 type Server struct {
@@ -24,8 +27,10 @@ type Server struct {
 	restarting   *runtime.AtomicBool
 	transferring *runtime.AtomicBool
 
-	//emitterLock sync.Mutex
+	// emitterLock sync.Mutex
 	powerLock *Locker
+
+	log log.Logger
 }
 
 func New(config *Configuration) (*Server, error) {
@@ -44,6 +49,8 @@ func New(config *Configuration) (*Server, error) {
 		emitter: &events.Bus{
 			SinkPool: events.NewSinkPool(),
 		},
+
+		log: *log.New(os.Stderr),
 	}
 
 	return &s, nil

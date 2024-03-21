@@ -147,6 +147,7 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 	return errors.New("attempting to handle unknown power action")
 }
 
+// Runs before the
 func (s *Server) Prelude() error {
 	return nil
 }
