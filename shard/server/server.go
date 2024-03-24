@@ -5,18 +5,11 @@ import (
 	"os"
 	"prismarine/shard/runtime"
 	"prismarine/shard/runtime/events"
-	"sync"
 
 	"github.com/charmbracelet/log"
 )
 
 type Server struct {
-	sync.RWMutex
-	ctx       context.Context
-	ctxCancel *context.CancelFunc
-
-	cfg *Configuration
-
 	instance runtime.Instance
 
 	emitter *events.Bus
@@ -64,14 +57,6 @@ func (s *Server) CreateInstance() error {
 // Id returns the UUID for the server
 func (s *Server) Id() string {
 	return s.Config().GetUuid()
-}
-
-// CtxCancel cancels the context assigned to this server instance, canceling all
-// background tasks
-func (s *Server) CtxCancel() {
-	if s.ctxCancel != nil {
-		(*s.ctxCancel)()
-	}
 }
 
 // Context returns a context instance for the server

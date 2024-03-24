@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"prismarine/shard/runtime/events"
+	"sync"
 	"time"
 )
 
@@ -22,9 +23,41 @@ const (
 	ProcessStoppingState = "stopping"
 )
 
+type RuntimeInstance struct {
+	sync.RWMutex
+	Ctx       context.Context
+	CtxCancel *context.CancelFunc
+
+	Cfg *Configuration
+
+	Installing   *AtomicBool
+	Restarting   *AtomicBool
+	Transferring *AtomicBool
+
+	Powerlock *Locker
+}
+
+func (r *RuntimeInstance) Id() string {
+	r.RLock()
+	defer r.RUnlock()
+	return r.Cfg.Uuid
+}
+
+func (r *RuntimeInstance) Context() context.Context {
+	r.RLock()
+	defer r.RUnlock()
+	return r.Ctx
+}
+
 type Instance interface {
 	// Type returns the type of runtime
 	Type() string
+
+	// Id returns the Uuid of the instance
+	Id() string
+
+	// CtxCancel cancels the contxt of the instance, stopping all background tasks
+	CtxCancel()
 
 	// Config returns the runtime configuration
 	Config() *Configuration

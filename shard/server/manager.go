@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"prismarine/shard/remote"
+	"prismarine/shard/runtime"
 	"prismarine/shard/runtime/docker"
 	"sync"
 	"time"
@@ -13,7 +14,7 @@ import (
 type Manager struct {
 	sync.RWMutex
 	// client remote.Client
-	servers []*Server
+	servers []runtime.Instance
 }
 
 func NewManager(ctx context.Context) (*Manager, error) {
@@ -44,14 +45,14 @@ func (m *Manager) Keys() []string {
 }
 
 // All returns all the items in the collection
-func (m *Manager) All() []*Server {
+func (m *Manager) All() []runtime.Instance {
 	m.RLock()
 	defer m.RUnlock()
 	return m.servers
 }
 
 // Add adds an item to the collection
-func (m *Manager) Add(s *Server) {
+func (m *Manager) Add(s runtime.Instance) {
 	m.Lock()
 	defer m.Unlock()
 	m.servers = append(m.servers, s)
@@ -62,7 +63,7 @@ func (m *Manager) Add(s *Server) {
 // TODO Filter
 
 // Find returns a single server matching the filter
-func (m *Manager) Find(filter func(match *Server) bool) *Server {
+func (m *Manager) Find(filter func(match runtime.Instance) bool) runtime.Instance {
 	m.RLock()
 	defer m.RUnlock()
 
@@ -75,11 +76,11 @@ func (m *Manager) Find(filter func(match *Server) bool) *Server {
 }
 
 // Remove removes all items from the collection that match a filter function
-func (m *Manager) Remove(filter func(match *Server) bool) {
+func (m *Manager) Remove(filter func(match runtime.Instance) bool) {
 	m.Lock()
 	defer m.Unlock()
 
-	r := make([]*Server, 0)
+	r := make([]runtime.Instance, 0)
 	for _, v := range m.servers {
 		if !filter(v) {
 			r = append(r, v)
@@ -87,7 +88,7 @@ func (m *Manager) Remove(filter func(match *Server) bool) {
 	}
 }
 
-func (m *Manager) InitServer(data remote.ServerData) (*Server, error) {
+func (m *Manager) InitServer(data remote.ServerData) (runtime.Instance, error) {
 	s, err := New(&Configuration{
 		Name: "Zoom",
 		Uuid: data.Uuid,
@@ -97,7 +98,7 @@ func (m *Manager) InitServer(data remote.ServerData) (*Server, error) {
 	}
 
 	meta := docker.Metadata{
-		Image: "nginx",
+		Image: "hello-world",
 	}
 
 	if instance, err := docker.New(s.Id(), &meta); err != nil {

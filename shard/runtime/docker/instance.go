@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"prismarine/shard/runtime"
 	"prismarine/shard/runtime/events"
-	"sync"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
@@ -21,13 +20,12 @@ type Metadata struct {
 }
 
 type Instance struct {
-	sync.RWMutex
+	runtime.RuntimeInstance
 
 	Id string
 
 	// The Instance configuration
-	Configuration *runtime.Configuration
-	meta          *Metadata
+	meta *Metadata
 
 	// The Docker client being used for this runtime
 	client *client.Client
@@ -88,7 +86,7 @@ func (i *Instance) IsRunning(ctx context.Context) (bool, error) {
 func (i *Instance) Config() *runtime.Configuration {
 	i.RLock()
 	defer i.RUnlock()
-	return i.Configuration
+	return i.Cfg
 }
 
 // State returns the state of the Instance

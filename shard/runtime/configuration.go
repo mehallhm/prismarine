@@ -7,20 +7,19 @@ type Settings struct {
 }
 
 type Configuration struct {
-	sync.RWMutex
+	*sync.RWMutex
 
 	Uuid string `json:"uuid"`
 
 	Name        string `json:"name"`
 	Description string `json:"description"`
 
-	Suspended bool `json:"suspended"`
-
 	Invocation string `json:"invocation"`
 
-	Labels map[string]string `json:"labels"`
-
 	Container struct {
-		Image string `json:"image,omitempty"`
+		Labels map[string]string `json:"labels"`
+		Image  string            `json:"image,omitempty"`
 	} `json:"container,omitempty"`
+
+	Suspended bool `json:"suspended"`
 }
