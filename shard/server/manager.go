@@ -89,22 +89,17 @@ func (m *Manager) Remove(filter func(match runtime.Instance) bool) {
 }
 
 func (m *Manager) InitServer(data remote.ServerData) (runtime.Instance, error) {
-	s, err := New(&Configuration{
+	// Would change this for other runtimes
+	s, err := docker.New(&runtime.Configuration{
 		Name: "Zoom",
 		Uuid: data.Uuid,
+		Stop: "",
+		Container: &runtime.Container{
+			Image: "busybox",
+		},
 	})
 	if err != nil {
 		return nil, err
-	}
-
-	meta := docker.Metadata{
-		Image: "hello-world",
-	}
-
-	if instance, err := docker.New(s.Id(), &meta); err != nil {
-		return nil, err
-	} else {
-		s.instance = instance
 	}
 
 	return s, nil

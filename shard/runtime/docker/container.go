@@ -29,7 +29,7 @@ func (i *Instance) Attach(ctx context.Context) error {
 	}
 
 	// Set the stream again with the container.
-	if st, err := i.client.ContainerAttach(ctx, i.Id, opts); err != nil {
+	if st, err := i.client.ContainerAttach(ctx, i.Cfg.Uuid, opts); err != nil {
 		return errors.Wrap(err, "runtime/docker: error while attaching to container")
 	} else {
 		i.SetStream(&st)
@@ -66,7 +66,7 @@ func (i *Instance) Create() error {
 		return errors.Wrap(err, "runtime/docker: failed to inspect")
 	}
 
-	if err := i.ensureImageExists(i.meta.Image); err != nil {
+	if err := i.ensureImageExists(i.Cfg.Container.Image); err != nil {
 		return errors.WithStack(err)
 	}
 
@@ -85,7 +85,7 @@ func (i *Instance) Create() error {
 		Cmd:             nil,
 		Healthcheck:     nil,
 		ArgsEscaped:     false,
-		Image:           strings.TrimPrefix(i.meta.Image, "~"),
+		Image:           strings.TrimPrefix(i.Cfg.Container.Image, "~"),
 		Volumes:         nil,
 		WorkingDir:      "",
 		Entrypoint:      nil,
@@ -145,7 +145,7 @@ func (i *Instance) Create() error {
 		Init:            nil,
 	}
 
-	if _, err := i.client.ContainerCreate(ctx, conf, hostConf, nil, nil, i.Id); err != nil {
+	if _, err := i.client.ContainerCreate(ctx, conf, hostConf, nil, nil, i.Cfg.Uuid); err != nil {
 		return errors.Wrap(err, "runtime/docker: failed to create container")
 	}
 

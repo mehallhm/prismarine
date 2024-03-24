@@ -123,7 +123,7 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 			return err
 		}
 
-		return s.instance.Start(s.Context())
+		return s.instance.Start(s.Context(), true, 0)
 	case PowerActionStop:
 		fallthrough
 	case PowerActionRestart:
@@ -139,7 +139,7 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 			return err
 		}
 
-		return s.instance.Start(s.Context())
+		return s.instance.Start(s.Context(), true, 0)
 	case PowerActionKill:
 		panic("not implemented")
 	}

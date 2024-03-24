@@ -2,6 +2,7 @@ package docker
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"prismarine/shard/runtime"
 	"strings"
@@ -15,7 +16,7 @@ import (
 
 func (i *Instance) Preflight(ctx context.Context) error {
 	// Always destroy and re-create the server container
-	if err := i.client.ContainerRemove(ctx, i.Id, container.RemoveOptions{}); err != nil {
+	if err := i.client.ContainerRemove(ctx, i.Cfg.Uuid, container.RemoveOptions{}); err != nil {
 		if !client.IsErrNotFound(err) {
 			return errors.Wrap(err, "runtime/docker: failed to remove container")
 		}
@@ -35,11 +36,29 @@ func (i *Instance) Preflight(ctx context.Context) error {
 	return nil
 }
 
-func (i *Instance) Start(ctx context.Context) error {
+func (i *Instance) Start(ctx context.Context, skipLock bool, waitSeconds ...int) error {
 	log.Debug("starting instance...")
+
+	if i.Installing.Load() {
+		return errors.New("server is installing")
+	} else if i.Restoring.Load() {
+		return errors.New("server is restoring")
+	} else if i.Transferring.Load() {
+		return errors.New("server is transferring")
+	}
+
+	if i.State() != runtime.ProcessOfflineState {
+		return errors.New("Container already running")
+	}
+
 	sawError := false
 
 	defer func() {
+		if !skipLock {
+			log.Debug("Releasing powerlock")
+			i.Powerlock.Release()
+		}
+
 		if sawError {
 			// If we don't set it to stopping first, you'll trigger crash detection which
 			// we don't want to do at this point since it'll just immediately try to do the
@@ -48,6 +67,32 @@ func (i *Instance) Start(ctx context.Context) error {
 			i.SetState(runtime.ProcessOfflineState)
 		}
 	}()
+
+	var wait int
+	if len(waitSeconds) > 0 && waitSeconds[0] > 0 {
+		wait = waitSeconds[0]
+	}
+
+	// Determines if we should wait for the lock or not. If a value greater than 0 is passed
+	// into this function we will wait that long for a lock to be acquired.
+	if wait == 0 {
+		// If no wait duration was provided we will attempt to immediately acquire the lock
+		// and bail out with a context deadline error if it is not acquired immediately.
+		if err := i.Powerlock.Acquire(); err != nil {
+			return errors.Wrap(err, "failed to acquire exclusive power lock")
+		}
+	} else {
+		lockCtx, cancel := context.WithTimeout(i.Ctx, time.Second*time.Duration(wait))
+		defer cancel()
+
+		// Attempt to acquire a lock on the power action lock for up to 30 seconds. If more
+		// time than that passes an error will be propagated back up the chain and this
+		// request will be aborted.
+		if err := i.Powerlock.TryAcquire(lockCtx); err != nil {
+			return errors.Wrap(err, fmt.Sprintf("could not acquire lock on power action after %d seconds", wait))
+		}
+	}
+	log.Debug("acquired lock on power actions, processing event...")
 
 	if c, err := i.ContainerInspect(ctx); err != nil {
 		// Do nothing if the container is not found, we just don't want to continue
@@ -96,7 +141,7 @@ func (i *Instance) Start(ctx context.Context) error {
 		return errors.Wrap(err, "runtime/docker: failed to attach to container")
 	}
 
-	if err := i.client.ContainerStart(actx, i.Id, container.StartOptions{}); err != nil {
+	if err := i.client.ContainerStart(actx, i.Cfg.Uuid, container.StartOptions{}); err != nil {
 		return errors.Wrap(err, "runtime/docker: failed to start container")
 	}
 
@@ -113,7 +158,7 @@ func (i *Instance) Start(ctx context.Context) error {
 // for the process to be completed stopped.
 func (i *Instance) Stop(ctx context.Context) error {
 	i.Lock()
-	s := i.meta.Stop
+	s := i.Cfg.Stop
 	i.Unlock()
 
 	// A native "stop" as the Type field value will just skip over all of this
@@ -148,7 +193,7 @@ func (i *Instance) Stop(ctx context.Context) error {
 	// rather than forcefully terminating it.  Value is in seconds, but -1 is
 	// treated as indefinitely.
 	timeout := -1
-	if err := i.client.ContainerStop(ctx, i.Id, container.StopOptions{Timeout: &timeout}); err != nil {
+	if err := i.client.ContainerStop(ctx, i.Cfg.Uuid, container.StopOptions{Timeout: &timeout}); err != nil {
 		if client.IsErrNotFound(err) {
 			i.SetStream(nil)
 			i.SetState(runtime.ProcessOfflineState)
@@ -201,7 +246,7 @@ func (i *Instance) WaitForStop(ctx context.Context, duration time.Duration, term
 	// Block the return of this function until the container as been marked as no
 	// longer running. If this wait does not end by the time seconds have passed,
 	// attempt to terminate the container, or return an error.
-	ok, errChan := i.client.ContainerWait(tctx, i.Id, container.WaitConditionNotRunning)
+	ok, errChan := i.client.ContainerWait(tctx, i.Cfg.Uuid, container.WaitConditionNotRunning)
 	select {
 	case <-ctx.Done():
 		if err := ctx.Err(); err != nil {
@@ -252,11 +297,19 @@ func (i *Instance) Terminate(ctx context.Context, signal os.Signal) error {
 	// Set to stopping first to prevent crash detection
 	i.SetState(runtime.ProcessStoppingState)
 	sig := strings.TrimSuffix(strings.TrimPrefix(signal.String(), "signal "), "ed")
-	if err := i.client.ContainerKill(ctx, i.Id, sig); err != nil && !client.IsErrNotFound(err) {
+	if err := i.client.ContainerKill(ctx, i.Cfg.Uuid, sig); err != nil && !client.IsErrNotFound(err) {
 		return errors.WithStack(err)
 	}
 
 	i.SetState(runtime.ProcessOfflineState)
 
 	return nil
+}
+
+func (i *Instance) Restart(ctx context.Context) error {
+	if err := i.WaitForStop(ctx, time.Second*10, true); err != nil {
+		return err
+	}
+
+	return i.Start(i.Ctx, false, 0)
 }

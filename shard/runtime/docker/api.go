@@ -4,17 +4,18 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/versions"
-	"github.com/docker/docker/client"
-	"github.com/docker/docker/errdefs"
-	"github.com/pkg/errors"
 	"io"
 	"net"
 	"net/http"
 	"reflect"
 	"strings"
 	"sync"
+
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/versions"
+	"github.com/docker/docker/client"
+	"github.com/docker/docker/errdefs"
+	"github.com/pkg/errors"
 )
 
 var (
@@ -73,7 +74,7 @@ func (h *HijackedResponse) CloseWrite() error {
 
 func configure(c *client.Client) {
 	o.Do(func() {
-		//fastEnabled = config.Get().Docker.UsePerformantInspect
+		// fastEnabled = config.Get().Docker.UsePerformantInspect
 		fastEnabled = true
 
 		r := reflect.ValueOf(c).Elem()
@@ -96,11 +97,11 @@ func (i *Instance) ContainerInspect(ctx context.Context) (types.ContainerJSON, e
 	// wrong for now it is easy enough for people to switch back to the older method
 	// of fetching stats.
 	if !fastEnabled {
-		return i.client.ContainerInspect(ctx, i.Id)
+		return i.client.ContainerInspect(ctx, i.Cfg.Uuid)
 	}
 
 	var st types.ContainerJSON
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/containers/"+i.Id+"/json", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/containers/"+i.Cfg.Uuid+"/json", nil)
 	if err != nil {
 		return st, errors.WithStack(err)
 	}

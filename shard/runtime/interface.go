@@ -23,41 +23,20 @@ const (
 	ProcessStoppingState = "stopping"
 )
 
-type RuntimeInstance struct {
-	sync.RWMutex
-	Ctx       context.Context
-	CtxCancel *context.CancelFunc
-
-	Cfg *Configuration
-
-	Installing   *AtomicBool
-	Restarting   *AtomicBool
-	Transferring *AtomicBool
-
-	Powerlock *Locker
-}
-
-func (r *RuntimeInstance) Id() string {
-	r.RLock()
-	defer r.RUnlock()
-	return r.Cfg.Uuid
-}
-
-func (r *RuntimeInstance) Context() context.Context {
-	r.RLock()
-	defer r.RUnlock()
-	return r.Ctx
-}
-
 type Instance interface {
+	// New creates a new Instance
+	// New() *Instance
+
 	// Type returns the type of runtime
 	Type() string
 
 	// Id returns the Uuid of the instance
 	Id() string
 
-	// CtxCancel cancels the contxt of the instance, stopping all background tasks
-	CtxCancel()
+	// ContextCancel cancels the contxt of the instance, stopping all background tasks
+	ContextCancel()
+
+	Context() context.Context
 
 	// Config returns the runtime configuration
 	Config() *Configuration
@@ -78,7 +57,7 @@ type Instance interface {
 
 	// Start starts a server insance. If the server is not in a state where it
 	// can be started an error should be returned
-	Start(ctx context.Context) error
+	Start(ctx context.Context, skipLock bool, wait ...int) error
 
 	// Stops stops a server instance. If the server is already stopped an
 	// error will not be returned
@@ -125,4 +104,30 @@ type Instance interface {
 	// SetLogCallback sets the callback that the container's log
 	// output will be passed to
 	SetLogCallback(func([]byte))
+}
+
+type RuntimeInstance struct {
+	sync.RWMutex
+	Ctx       context.Context
+	CtxCancel *context.CancelFunc
+
+	Cfg *Configuration
+
+	Installing   *AtomicBool
+	Restoring    *AtomicBool
+	Transferring *AtomicBool
+
+	Powerlock *Locker
+}
+
+func (r *RuntimeInstance) Id() string {
+	r.RLock()
+	defer r.RUnlock()
+	return r.Cfg.Uuid
+}
+
+func (r *RuntimeInstance) Context() context.Context {
+	r.RLock()
+	defer r.RUnlock()
+	return r.Ctx
 }

@@ -5,11 +5,16 @@ import (
 	"os"
 	"prismarine/shard/runtime"
 	"prismarine/shard/runtime/events"
+	"sync"
 
 	"github.com/charmbracelet/log"
 )
 
 type Server struct {
+	sync.RWMutex
+	ctx       context.Context
+	ctxCancel *context.CancelFunc
+
 	instance runtime.Instance
 
 	emitter *events.Bus
@@ -20,24 +25,24 @@ type Server struct {
 	restarting   *runtime.AtomicBool
 	transferring *runtime.AtomicBool
 
+	powerLock *runtime.Locker
+
 	// emitterLock sync.Mutex
-	powerLock *Locker
 
 	log log.Logger
 }
 
-func New(config *Configuration) (*Server, error) {
+func New() (*Server, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := Server{
 		ctx:       ctx,
 		ctxCancel: &cancel,
-		cfg:       config,
 
 		installing:   runtime.NewAtomicBool(false),
 		restarting:   runtime.NewAtomicBool(false),
 		transferring: runtime.NewAtomicBool(false),
 
-		powerLock: NewLocker(),
+		powerLock: runtime.NewLocker(),
 
 		emitter: &events.Bus{
 			SinkPool: events.NewSinkPool(),
@@ -49,14 +54,12 @@ func New(config *Configuration) (*Server, error) {
 	return &s, nil
 }
 
-// CreateInstance creates the Environment Instance for the Server
-func (s *Server) CreateInstance() error {
-	return s.instance.Create()
-}
-
-// Id returns the UUID for the server
-func (s *Server) Id() string {
-	return s.Config().GetUuid()
+// CtxCancel cancels the context assigned to this server instance, canceling all
+// background tasks
+func (s *Server) CtxCancel() {
+	if s.ctxCancel != nil {
+		(*s.ctxCancel)()
+	}
 }
 
 // Context returns a context instance for the server

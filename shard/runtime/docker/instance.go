@@ -14,18 +14,8 @@ import (
 // the base runtime
 var _ runtime.Instance = (*Instance)(nil)
 
-type Metadata struct {
-	Image string
-	Stop  string
-}
-
 type Instance struct {
 	runtime.RuntimeInstance
-
-	Id string
-
-	// The Instance configuration
-	meta *Metadata
 
 	// The Docker client being used for this runtime
 	client *client.Client
@@ -39,16 +29,28 @@ type Instance struct {
 	emitter *events.Bus
 }
 
-func New(id string, m *Metadata) (*Instance, error) {
+func New(config *runtime.Configuration) (*Instance, error) {
 	cli, err := Create()
 	if err != nil {
 		return nil, err
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	i := &Instance{
-		Id:     id,
+		RuntimeInstance: runtime.RuntimeInstance{
+			Ctx:       ctx,
+			CtxCancel: &cancel,
+
+			Cfg: config,
+
+			Transferring: runtime.NewAtomicBool(false),
+			Restoring:    runtime.NewAtomicBool(false),
+			Installing:   runtime.NewAtomicBool(false),
+
+			Powerlock: runtime.NewLocker(),
+		},
 		client: cli,
-		meta:   m,
 
 		state: runtime.NewAtomicString(runtime.ProcessOfflineState),
 	}
@@ -133,4 +135,38 @@ func (i *Instance) SetState(state string) {
 		i.state.Store(state)
 		i.Events().Publish(runtime.StateChangeEvent, state)
 	}
+}
+
+func (i *Instance) ContextCancel() {
+	if i.CtxCancel != nil {
+		(*i.CtxCancel)()
+	}
+}
+
+func (i *Instance) Context() context.Context {
+	return i.Ctx
+}
+
+func (i *Instance) Destroy() error {
+	panic("Not implimented")
+}
+
+func (i *Instance) ExitState() (uint32, bool, error) {
+	panic("not implimented")
+}
+
+func (i *Instance) ReadLog(depth int) ([]string, error) {
+	panic("Not implimented")
+}
+
+func (i *Instance) SendCommand(cmd string) error {
+	panic("not implimented")
+}
+
+func (i *Instance) SetLogCallback(func([]byte)) {
+	panic("Not implimented")
+}
+
+func (i *Instance) Uptime(ctx context.Context) (int64, error) {
+	panic("not implimented")
 }

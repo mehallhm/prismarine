@@ -19,11 +19,7 @@ func Execute() {
 	for _, s := range manager.All() {
 		log.Debugf("server %s loaded", s.Id())
 
-		if err := s.CreateInstance(); err != nil {
-			log.Fatal("We failed")
-		}
-
-		if err := s.HandlePowerAction(server.PowerActionStart, 0); err != nil {
+		if err := s.Start(s.Context(), false, 0); err != nil {
 			log.Error(err, "Failed to start server")
 		}
 
@@ -33,9 +29,9 @@ func Execute() {
 	time.Sleep(10 * time.Second)
 	log.Debug("Executing again...")
 
-	for _, s := range manager.All() {
-		if err := s.HandlePowerAction(server.PowerActionStop, 0); err != nil {
-			log.Error(err, "Failed to stop server")
-		}
-	}
+	// for _, s := range manager.All() {
+	// 	if err := s.HandlePowerAction(server.PowerActionStop, 0); err != nil {
+	// 		log.Error(err, "Failed to stop server")
+	// 	}
+	// }
 }
