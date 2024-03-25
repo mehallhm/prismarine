@@ -9,8 +9,8 @@ import (
 var ErrLockerLocked = errors.New("locker: cannot acquire lock, already locked")
 
 type Locker struct {
-	sync.RWMutex
 	ch chan bool
+	sync.RWMutex
 }
 
 // NewLocker returns a new Locker

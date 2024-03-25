@@ -29,9 +29,9 @@ func Execute() {
 	time.Sleep(10 * time.Second)
 	log.Debug("Executing again...")
 
-	// for _, s := range manager.All() {
-	// 	if err := s.HandlePowerAction(server.PowerActionStop, 0); err != nil {
-	// 		log.Error(err, "Failed to stop server")
-	// 	}
-	// }
+	for _, s := range manager.All() {
+		if err := s.WaitForStop(s.Context(), 30, true, false, 0); err != nil {
+			log.Error(err, "Failed to stop server")
+		}
+	}
 }

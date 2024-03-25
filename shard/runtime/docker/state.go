@@ -36,16 +36,14 @@ func (i *Instance) Preflight(ctx context.Context) error {
 	return nil
 }
 
-func (i *Instance) Start(ctx context.Context, skipLock bool, waitSeconds ...int) error {
+func (i *Instance) Start(ctx context.Context, skipLock bool, waitSeconds int) error {
 	log.Debug("starting instance...")
 
-	if i.Installing.Load() {
-		return errors.New("server is installing")
-	} else if i.Restoring.Load() {
-		return errors.New("server is restoring")
-	} else if i.Transferring.Load() {
-		return errors.New("server is transferring")
+	cleanup, err := i.AttemptPowerlock(ctx, skipLock, waitSeconds)
+	if err != nil {
+		return err
 	}
+	defer cleanup()
 
 	if i.State() != runtime.ProcessOfflineState {
 		return errors.New("Container already running")
@@ -54,11 +52,6 @@ func (i *Instance) Start(ctx context.Context, skipLock bool, waitSeconds ...int)
 	sawError := false
 
 	defer func() {
-		if !skipLock {
-			log.Debug("Releasing powerlock")
-			i.Powerlock.Release()
-		}
-
 		if sawError {
 			// If we don't set it to stopping first, you'll trigger crash detection which
 			// we don't want to do at this point since it'll just immediately try to do the
@@ -67,32 +60,6 @@ func (i *Instance) Start(ctx context.Context, skipLock bool, waitSeconds ...int)
 			i.SetState(runtime.ProcessOfflineState)
 		}
 	}()
-
-	var wait int
-	if len(waitSeconds) > 0 && waitSeconds[0] > 0 {
-		wait = waitSeconds[0]
-	}
-
-	// Determines if we should wait for the lock or not. If a value greater than 0 is passed
-	// into this function we will wait that long for a lock to be acquired.
-	if wait == 0 {
-		// If no wait duration was provided we will attempt to immediately acquire the lock
-		// and bail out with a context deadline error if it is not acquired immediately.
-		if err := i.Powerlock.Acquire(); err != nil {
-			return errors.Wrap(err, "failed to acquire exclusive power lock")
-		}
-	} else {
-		lockCtx, cancel := context.WithTimeout(i.Ctx, time.Second*time.Duration(wait))
-		defer cancel()
-
-		// Attempt to acquire a lock on the power action lock for up to 30 seconds. If more
-		// time than that passes an error will be propagated back up the chain and this
-		// request will be aborted.
-		if err := i.Powerlock.TryAcquire(lockCtx); err != nil {
-			return errors.Wrap(err, fmt.Sprintf("could not acquire lock on power action after %d seconds", wait))
-		}
-	}
-	log.Debug("acquired lock on power actions, processing event...")
 
 	if c, err := i.ContainerInspect(ctx); err != nil {
 		// Do nothing if the container is not found, we just don't want to continue
@@ -172,7 +139,7 @@ func (i *Instance) Stop(ctx context.Context) error {
 		signal := os.Kill
 
 		// Skipping some stuff
-		return i.Terminate(ctx, signal)
+		return i.Terminate(ctx, signal, true, 0)
 	}
 
 	// If the process is already offline don't switch it back to stopping. Just leave it how
@@ -214,7 +181,13 @@ func (i *Instance) Stop(ctx context.Context) error {
 // Calls to Environment.Terminate() in this function use the context passed
 // through since we don't want to prevent termination of the server instance
 // just because the context.WithTimeout() has expired.
-func (i *Instance) WaitForStop(ctx context.Context, duration time.Duration, terminate bool) error {
+func (i *Instance) WaitForStop(ctx context.Context, duration time.Duration, terminate bool, skipLock bool, waitSeconds int) error {
+	cleanup, err := i.AttemptPowerlock(ctx, skipLock, waitSeconds)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
 	tctx, cancel := context.WithTimeout(context.Background(), duration)
 	defer cancel()
 
@@ -230,7 +203,7 @@ func (i *Instance) WaitForStop(ctx context.Context, duration time.Duration, term
 
 	doTermination := func(s string) error {
 		log.Warnf("Terminating with %s", s)
-		return i.Terminate(ctx, os.Kill)
+		return i.Terminate(ctx, os.Kill, true, 0)
 	}
 
 	// We pass through the timed context for this stop action so that if one of the
@@ -275,8 +248,15 @@ func (i *Instance) WaitForStop(ctx context.Context, duration time.Duration, term
 }
 
 // Terminate forcefully terminates the container using the signal provided
-func (i *Instance) Terminate(ctx context.Context, signal os.Signal) error {
+func (i *Instance) Terminate(ctx context.Context, signal os.Signal, skipLock bool, waitSeconds int) error {
 	log.Warnf("Terminating instance %s", i.Id)
+
+	cleanup, err := i.AttemptPowerlock(ctx, skipLock, waitSeconds)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
 	c, err := i.ContainerInspect(ctx)
 	if err != nil {
 		if client.IsErrNotFound(err) {
@@ -307,9 +287,49 @@ func (i *Instance) Terminate(ctx context.Context, signal os.Signal) error {
 }
 
 func (i *Instance) Restart(ctx context.Context) error {
-	if err := i.WaitForStop(ctx, time.Second*10, true); err != nil {
+	if err := i.WaitForStop(ctx, time.Second*10, true, false, 0); err != nil {
 		return err
 	}
 
 	return i.Start(i.Ctx, false, 0)
+}
+
+func (i *Instance) AttemptPowerlock(ctx context.Context, skipLock bool, waitSeconds int) (func(), error) {
+	if i.Installing.Load() {
+		return nil, errors.New("server is installing")
+	} else if i.Restoring.Load() {
+		return nil, errors.New("server is restoring")
+	} else if i.Transferring.Load() {
+		return nil, errors.New("server is transferring")
+	}
+
+	cleanup := func() {
+		log.Debug("Releasing powerlock...")
+		i.Powerlock.Release()
+	}
+
+	if waitSeconds > 0 && !skipLock {
+		lockCtx, cancel := context.WithTimeout(i.Ctx, time.Second*time.Duration(waitSeconds))
+		defer cancel()
+
+		// Attempt to acquire a lock on the power action lock for up to 30 seconds. If more
+		// time than that passes an error will be propagated back up the chain and this
+		// request will be aborted.
+		if err := i.Powerlock.TryAcquire(lockCtx); err != nil {
+			return nil, errors.Wrap(err, fmt.Sprintf("could not acquire lock on power action after %d seconds", waitSeconds))
+		}
+
+		return cleanup, nil
+	}
+
+	if err := i.Powerlock.Acquire(); err != nil {
+		log.Warn("failed to aquire powerlock...")
+		if skipLock {
+			log.Debug("skipping lock due to skiplock")
+			return func() {}, nil
+		}
+		return nil, errors.Wrap(err, "failed to aquire powerlock")
+	}
+
+	return cleanup, nil
 }

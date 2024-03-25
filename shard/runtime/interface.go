@@ -57,7 +57,7 @@ type Instance interface {
 
 	// Start starts a server insance. If the server is not in a state where it
 	// can be started an error should be returned
-	Start(ctx context.Context, skipLock bool, wait ...int) error
+	Start(ctx context.Context, skipLock bool, wait int) error
 
 	// Stops stops a server instance. If the server is already stopped an
 	// error will not be returned
@@ -65,11 +65,11 @@ type Instance interface {
 
 	// WaitForStop waits for a server Instance to stop gracefully. If it
 	// does not stop in the given duration, it will either error or terminate
-	WaitForStop(ctx context.Context, duration time.Duration, terminate bool) error
+	WaitForStop(ctx context.Context, duration time.Duration, terminate bool, skipLock bool, wait int) error
 
 	// Terminate stops a running server instance using the provided signal. An
 	// error is not thrown if it is already stopped
-	Terminate(ctx context.Context, signal os.Signal) error
+	Terminate(ctx context.Context, signal os.Signal, skipLock bool, wait int) error
 
 	// Destroy destroys the instance
 	Destroy() error

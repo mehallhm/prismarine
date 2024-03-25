@@ -127,7 +127,7 @@ func (s *Server) HandlePowerAction(action PowerAction, waitSeconds ...int) error
 	case PowerActionStop:
 		fallthrough
 	case PowerActionRestart:
-		if err := s.instance.WaitForStop(s.Context(), time.Second*10, true); err != nil {
+		if err := s.instance.WaitForStop(s.Context(), time.Second*10, true, false, 0); err != nil {
 			return err
 		}
 
