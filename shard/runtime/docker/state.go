@@ -123,7 +123,13 @@ func (i *Instance) Start(ctx context.Context, skipLock bool, waitSeconds int) er
 // You most likely want to be using WaitForStop() rather than this function,
 // since this will return as soon as the command is sent, rather than waiting
 // for the process to be completed stopped.
-func (i *Instance) Stop(ctx context.Context) error {
+func (i *Instance) Stop(ctx context.Context, skipLock bool, waitSeconds int) error {
+	cleanup, err := i.AttemptPowerlock(ctx, skipLock, waitSeconds)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
 	i.Lock()
 	s := i.Cfg.Stop
 	i.Unlock()
@@ -209,7 +215,7 @@ func (i *Instance) WaitForStop(ctx context.Context, duration time.Duration, term
 	// We pass through the timed context for this stop action so that if one of the
 	// internal docker calls fails to ever finish before we've exhausted the time limit
 	// the resources get cleaned up, and the exection is stopped.
-	if err := i.Stop(tctx); err != nil {
+	if err := i.Stop(tctx, true, 0); err != nil {
 		if terminate && errors.Is(err, context.DeadlineExceeded) {
 			return doTermination("stop")
 		}

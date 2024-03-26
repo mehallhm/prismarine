@@ -1,4 +1,4 @@
-package server
+package manager
 
 import (
 	"context"
@@ -86,6 +86,8 @@ func (m *Manager) Remove(filter func(match runtime.Instance) bool) {
 			r = append(r, v)
 		}
 	}
+
+	m.servers = r
 }
 
 func (m *Manager) InitServer(data remote.ServerData) (runtime.Instance, error) {
@@ -129,7 +131,7 @@ func (m *Manager) init(ctx context.Context) error {
 		m.Add(s)
 	}
 
-	diff := time.Now().Sub(start)
+	diff := time.Since(start)
 	log.Debugf("Duration of startup: %s", diff)
 
 	return nil

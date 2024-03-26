@@ -6,6 +6,8 @@ import (
 	"prismarine/shard/runtime/events"
 	"sync"
 	"time"
+
+	"github.com/charmbracelet/log"
 )
 
 const (
@@ -61,7 +63,7 @@ type Instance interface {
 
 	// Stops stops a server instance. If the server is already stopped an
 	// error will not be returned
-	Stop(ctx context.Context) error
+	Stop(ctx context.Context, skipLock bool, wait int) error
 
 	// WaitForStop waits for a server Instance to stop gracefully. If it
 	// does not stop in the given duration, it will either error or terminate
@@ -118,6 +120,10 @@ type RuntimeInstance struct {
 	Transferring *AtomicBool
 
 	Powerlock *Locker
+
+	Events *events.Bus
+
+	Log *log.Logger
 }
 
 func (r *RuntimeInstance) Id() string {

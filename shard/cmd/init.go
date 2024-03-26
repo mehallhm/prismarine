@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"context"
-	"prismarine/shard/server"
+	"prismarine/shard/manager"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -10,7 +10,7 @@ import (
 
 func Execute() {
 	log.SetLevel(log.DebugLevel)
-	manager, err := server.NewManager(context.Background())
+	manager, err := manager.NewManager(context.Background())
 	if err != nil {
 		log.Fatal("failed to initialize manager")
 		return

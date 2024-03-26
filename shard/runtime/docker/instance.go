@@ -3,9 +3,11 @@ package docker
 import (
 	"context"
 	"fmt"
+	"os"
 	"prismarine/shard/runtime"
 	"prismarine/shard/runtime/events"
 
+	"github.com/charmbracelet/log"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 )
@@ -49,6 +51,12 @@ func New(config *runtime.Configuration) (*Instance, error) {
 			Installing:   runtime.NewAtomicBool(false),
 
 			Powerlock: runtime.NewLocker(),
+
+			Events: &events.Bus{
+				SinkPool: events.NewSinkPool(),
+			},
+
+			Log: log.New(os.Stderr),
 		},
 		client: cli,
 
