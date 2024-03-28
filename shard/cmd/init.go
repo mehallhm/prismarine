@@ -3,7 +3,7 @@ package cmd
 import (
 	"context"
 	"prismarine/shard/manager"
-	"time"
+	"prismarine/shard/router"
 
 	"github.com/charmbracelet/log"
 )
@@ -25,13 +25,16 @@ func Execute() {
 
 	}
 
-	log.Debug("Waiting...")
-	time.Sleep(10 * time.Second)
-	log.Debug("Executing again...")
+	routes := router.Create(manager)
+	routes.Listen(":3000")
 
-	for _, s := range manager.All() {
-		if err := s.WaitForStop(s.Context(), 30, true, false, 0); err != nil {
-			log.Error(err, "Failed to stop server")
-		}
-	}
+	// log.Debug("Waiting...")
+	// time.Sleep(10 * time.Second)
+	// log.Debug("Executing again...")
+
+	// for _, s := range manager.All() {
+	// 	if err := s.WaitForStop(s.Context(), 30, true, false, 0); err != nil {
+	// 		log.Error(err, "Failed to stop server")
+	// 	}
+	// }
 }

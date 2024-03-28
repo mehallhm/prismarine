@@ -1,20 +1,21 @@
 package router
 
 import (
-	"github.com/gin-gonic/gin"
-	"net/http"
+	"prismarine/shard/manager"
+
+	"github.com/gofiber/fiber/v2"
 )
 
-func Configure() {
-	router := gin.New()
+func Create(m *manager.Manager) *fiber.App {
+	router := fiber.New()
 
-	router.GET("/", getHome)
-	err := router.Run("localhost:8000")
-	if err != nil {
-		return
-	}
-}
+	router.Use(func(c *fiber.Ctx) error {
+		c.Locals("manager", m)
+		return c.Next()
+	})
 
-func getHome(c *gin.Context) {
-	c.String(http.StatusOK, "Hello World")
+	instance := router.Group("/instance")
+	_ = instance
+
+	return router
 }
